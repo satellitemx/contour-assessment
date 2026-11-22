@@ -6,14 +6,15 @@ import type { Locale } from '@/lib/types';
 export const MANTINE_DATETIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 
 export function toMantineDateTimeValue(date: Date | string): string {
-  return dayjs(date).format(MANTINE_DATETIME_FORMAT);
+  const parsed = dayjs(date);
+  if (!parsed.isValid()) return '';
+  return parsed.format(MANTINE_DATETIME_FORMAT);
 }
 
 export function mantineValueToIso(value: string | null): string | null {
   if (!value) return null;
   const parsed = dayjs(value);
-  if (!parsed.isValid()) return null;
-  return parsed.toDate().toISOString();
+  return parsed.isValid() ? parsed.toDate().toISOString() : null;
 }
 
 export function formatConsultationRange(
@@ -42,7 +43,13 @@ export function formatConsultationRange(
 }
 
 export function getDefaultBookingRange(): { startsAt: string; endsAt: string } {
-  const tomorrow = dayjs().add(1, 'day').hour(10).minute(0).second(0).millisecond(0);
+  const tomorrow = dayjs()
+    .add(1, 'day')
+    .hour(10)
+    .minute(0)
+    .second(0)
+    .millisecond(0);
+
   return {
     startsAt: tomorrow.format(MANTINE_DATETIME_FORMAT),
     endsAt: tomorrow.add(1, 'hour').format(MANTINE_DATETIME_FORMAT),

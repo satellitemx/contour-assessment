@@ -128,7 +128,10 @@ function RescheduleForm({
             form.setFieldValue('startsAt', val);
             if (val && form.values.endsAt) {
               const nextStart = dayjs(val);
-              if (!dayjs(form.values.endsAt).isAfter(nextStart)) {
+              if (
+                nextStart.isValid() &&
+                !dayjs(form.values.endsAt).isAfter(nextStart)
+              ) {
                 form.setFieldValue(
                   'endsAt',
                   nextStart.add(1, 'hour').format(MANTINE_DATETIME_FORMAT),

@@ -163,7 +163,7 @@ function BookConsultationForm({
               if (val && form.values.endsAt) {
                 const nextStart = dayjs(val);
                 const currEnd = dayjs(form.values.endsAt);
-                if (!currEnd.isAfter(nextStart)) {
+                if (nextStart.isValid() && !currEnd.isAfter(nextStart)) {
                   form.setFieldValue(
                     'endsAt',
                     nextStart.add(1, 'hour').format(MANTINE_DATETIME_FORMAT),
