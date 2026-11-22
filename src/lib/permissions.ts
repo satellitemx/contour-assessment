@@ -90,10 +90,6 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   },
 ];
 
-export const PERMISSION_CATALOG_MAP = new Map<PermissionKey, PermissionCatalogEntry>(
-  PERMISSION_CATALOG.map((entry) => [entry.key, entry]),
-);
-
 export function isKnownPermissionKey(value: string): value is PermissionKey {
   return permissionKeySchema.safeParse(value).success;
 }

@@ -3,7 +3,6 @@ import type {
   Consultation,
   ConsultationStats,
   PaginatedConsultationsResult,
-  Permission,
   RoleSummary,
   UserProfile,
   UserWithRoles,
@@ -57,7 +56,6 @@ export interface LmsRepository {
   listAllConsultations(query: ConsultationQueryInput): Promise<PaginatedConsultationsResult>;
 
   // Attribute-Composed RBAC
-  listPermissions(): Promise<Permission[]>;
   listRoles(): Promise<RoleSummary[]>;
   createRole(input: CreateRoleInput): Promise<RoleSummary>;
   updateRole(roleId: string, input: UpdateRoleInput): Promise<RoleSummary>;

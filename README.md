@@ -79,7 +79,8 @@ The app does not hardcode role names such as `STUDENT` or `ADMIN`. All access ch
 │   └── migrations/
 │       ├── 20261122000001_initial_schema.sql
 │       ├── 20261122000002_rls_policies.sql
-│       └── 20261122000003_user_locale_preference.sql
+│       ├── 20261122000003_user_locale_preference.sql
+│       └── 20261122000004_drop_unused_get_user_permissions.sql
 ├── src/
 │   ├── proxy.ts                         # Next.js 16 session and route proxy
 │   ├── theme.ts                         # Mantine theme tokens
@@ -116,6 +117,7 @@ The app does not hardcode role names such as `STUDENT` or `ADMIN`. All access ch
 - `supabase/migrations/20261122000001_initial_schema.sql`: Creates tables, indexes, `updated_at` triggers, `has_permission()`, `get_user_permissions()`, and `handle_new_user()`.
 - `supabase/migrations/20261122000002_rls_policies.sql`: Enables RLS on all tables and adds attribute-based policies.
 - `supabase/migrations/20261122000003_user_locale_preference.sql`: Adds `preferred_locale` (`en` default) to `profiles` and updates `handle_new_user()`.
+- `supabase/migrations/20261122000004_drop_unused_get_user_permissions.sql`: Drops the unused `get_user_permissions()` helper function.
 - `supabase/schema.sql`: Combines all migrations into one SQL file.
 - `supabase/seed.sql`: Seeds 8 access attributes and 3 starter roles (`learner`, `consultation-auditor`, `super-admin`).
 - `scripts/seed.ts`: Creates 3 demo accounts and sample consultations.
@@ -228,7 +230,7 @@ Demo accounts from `bun run db:seed` use `SEED_DEFAULT_PASSWORD` (`ChangeMe123!`
 ### 1. Set Up Production Supabase
 
 1. Create a project in [Supabase](https://supabase.com/dashboard).
-2. Run `supabase/migrations/20261122000001_initial_schema.sql`, `20261122000002_rls_policies.sql`, and `20261122000003_user_locale_preference.sql` (or `supabase/schema.sql`).
+2. Run `supabase/migrations/20261122000001_initial_schema.sql`, `20261122000002_rls_policies.sql`, `20261122000003_user_locale_preference.sql`, and `20261122000004_drop_unused_get_user_permissions.sql` (or `supabase/schema.sql`).
 3. Run `supabase/seed.sql`.
 4. Open **Authentication → URL Configuration**.
 5. Set **Site URL** to `https://your-app.vercel.app`.
@@ -311,7 +313,6 @@ bun run build
 | `POST /api/consultations` | `consultations:create:own` | Create a consultation |
 | `PATCH /api/consultations/[id]` | `consultations:update:own` or `consultations:cancel:own` | Complete, reschedule, or cancel own consultation |
 | `GET /api/admin/consultations` | `consultations:read:all` | Get all consultations with search and pages |
-| `GET /api/admin/permissions` | `roles:read` \| `roles:manage` \| `users:assign_roles` | Get permission attribute catalog |
 | `GET /api/admin/roles` | `roles:read` \| `roles:manage` \| `users:assign_roles` | Get roles, attributes, and user counts |
 | `POST /api/admin/roles` | `roles:manage` | Create a custom role |
 | `PATCH /api/admin/roles/[id]` | `roles:manage` | Update role metadata or attributes |

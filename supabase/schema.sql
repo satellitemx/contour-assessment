@@ -1,5 +1,5 @@
 -- Contour Mini LMS - Consolidated Declarative Schema Snapshot
--- Mirrors supabase/migrations/20261122000001_initial_schema.sql and 20261122000002_rls_policies.sql
+-- Mirrors supabase/migrations/20261122000001 through 20261122000004
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -129,20 +129,6 @@ AS $$
     WHERE ur.user_id = target_user_id
       AND p.key = perm_key
   );
-$$;
-
-CREATE OR REPLACE FUNCTION public.get_user_permissions(target_user_id uuid)
-RETURNS text[]
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT COALESCE(array_agg(DISTINCT p.key ORDER BY p.key), ARRAY[]::text[])
-  FROM public.user_roles ur
-  JOIN public.role_permissions rp ON rp.role_id = ur.role_id
-  JOIN public.permissions p ON p.id = rp.permission_id
-  WHERE ur.user_id = target_user_id;
 $$;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()

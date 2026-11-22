@@ -11,7 +11,6 @@ import type {
   paginatedConsultationsResultSchema,
   paginationMetaSchema,
   permissionKeySchema,
-  permissionSchema,
   roleSummarySchema,
   signupResponseSchema,
   userProfileSchema,
@@ -25,7 +24,6 @@ export type ConsultationStatusFilter = z.infer<
 >;
 export type PermissionKey = z.infer<typeof permissionKeySchema>;
 
-export type Permission = z.infer<typeof permissionSchema>;
 export type RoleSummary = z.infer<typeof roleSummarySchema>;
 export type UserProfile = z.infer<typeof userProfileSchema>;
 export type AuthUserContext = z.infer<typeof authUserContextSchema>;

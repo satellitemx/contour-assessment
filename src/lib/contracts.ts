@@ -34,15 +34,6 @@ export const permissionKeySchema = z.enum([
 // Domain Entity Schemas
 // ---------------------------------------------------------------------------
 
-export const permissionSchema = z.object({
-  id: z.string(),
-  key: permissionKeySchema,
-  resource: z.string(),
-  action: z.string(),
-  label: z.string(),
-  description: z.string(),
-});
-
 export const roleSummarySchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -169,10 +160,6 @@ export const consultationMutationResponseSchema = z.object({
 });
 
 export const adminConsultationsResponseSchema = paginatedConsultationsResultSchema;
-
-export const permissionsResponseSchema = z.object({
-  permissions: z.array(permissionSchema),
-});
 
 export const rolesListResponseSchema = z.object({
   roles: z.array(roleSummarySchema),

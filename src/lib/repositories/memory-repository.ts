@@ -15,7 +15,6 @@ import type {
   ConsultationStatus,
   Locale,
   PaginatedConsultationsResult,
-  Permission,
   PermissionKey,
   RoleSummary,
   UserProfile,
@@ -626,17 +625,6 @@ export class MemoryRepository implements LmsRepository {
         totalPages,
       },
     };
-  }
-
-  async listPermissions(): Promise<Permission[]> {
-    return PERMISSION_CATALOG.map((entry) => ({
-      id: deterministicUuid(`permission:${entry.key}`),
-      key: entry.key,
-      resource: entry.resource,
-      action: entry.action,
-      label: entry.label,
-      description: entry.description,
-    }));
   }
 
   async listRoles(): Promise<RoleSummary[]> {

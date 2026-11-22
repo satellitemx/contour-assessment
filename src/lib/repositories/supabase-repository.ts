@@ -9,7 +9,6 @@ import type {
   ConsultationStats,
   ConsultationStatus,
   PaginatedConsultationsResult,
-  Permission,
   PermissionKey,
   RoleSummary,
   UserProfile,
@@ -42,15 +41,6 @@ interface DbProfileRow {
   preferred_locale?: string | null;
   created_at: string;
   updated_at: string;
-}
-
-interface DbPermissionRow {
-  id: string;
-  key: string;
-  resource: string;
-  action: string;
-  label: string;
-  description: string;
 }
 
 interface DbRoleRow {
@@ -601,30 +591,6 @@ export class SupabaseRepository implements LmsRepository {
         totalPages,
       },
     };
-  }
-
-  async listPermissions(): Promise<Permission[]> {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from('permissions')
-      .select('id, key, resource, action, label, description')
-      .order('resource')
-      .order('action');
-
-    if (error) {
-      throw new AppError(500, 'PERMISSIONS_FETCH_FAILED', error.message);
-    }
-
-    return ((data ?? []) as DbPermissionRow[])
-      .filter((row) => isKnownPermissionKey(row.key))
-      .map((row) => ({
-        id: row.id,
-        key: row.key as PermissionKey,
-        resource: row.resource,
-        action: row.action,
-        label: row.label,
-        description: row.description,
-      }));
   }
 
   async listRoles(): Promise<RoleSummary[]> {
