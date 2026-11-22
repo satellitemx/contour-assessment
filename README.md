@@ -2,6 +2,16 @@
 
 This app is a mini LMS for consultation booking and dynamic role access control.
 
+## Live Preview
+
+Visit a deployed sample at https://contour-lms-mini.sate.li
+
+Sign-ups are disabled on this instance. Check seeding script for sample Student/Auditor/Super-admin login credentials.
+
+## AI Usage disclosure
+
+/goal (spec driven) with Antigravity with Gemini 4 Neon as Orchestrator. 
+
 ## Stack
 
 - **Framework**: Next.js 16 (App Router)
