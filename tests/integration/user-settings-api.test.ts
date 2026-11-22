@@ -4,6 +4,12 @@ import { POST as logoutPost } from '@/app/api/auth/logout/route';
 import { GET as meGet } from '@/app/api/auth/me/route';
 import { POST as signupPost } from '@/app/api/auth/signup/route';
 import { PATCH as userSettingsPatch } from '@/app/api/user/settings/route';
+import {
+  loginResponseSchema,
+  meResponseSchema,
+  signupResponseSchema,
+  userSettingsResponseSchema,
+} from '@/lib/contracts';
 import { LOCALE_COOKIE_NAME } from '@/lib/i18n';
 import { setTestRepository } from '@/lib/repositories';
 import { createTestRepo, jsonRequest } from './helpers';
@@ -35,7 +41,7 @@ describe('User Settings & Locale Preference API Integration', () => {
       }),
     );
     expect(loginRes.status).toBe(200);
-    const body = await loginRes.json();
+    const body = loginResponseSchema.parse(await loginRes.json());
     expect(body.user.preferredLocale).toBe('en');
     expect(loginRes.headers.get('set-cookie')).toContain(
       `${LOCALE_COOKIE_NAME}=en`,
@@ -63,7 +69,7 @@ describe('User Settings & Locale Preference API Integration', () => {
       }),
     );
     expect(updateRes.status).toBe(200);
-    const updatedBody = await updateRes.json();
+    const updatedBody = userSettingsResponseSchema.parse(await updateRes.json());
     expect(updatedBody.user.preferredLocale).toBe('zh-CN');
     expect(updateRes.headers.get('set-cookie')).toContain(
       `${LOCALE_COOKIE_NAME}=zh-CN`,
@@ -71,7 +77,7 @@ describe('User Settings & Locale Preference API Integration', () => {
 
     const meRes = await meGet();
     expect(meRes.status).toBe(200);
-    const meBody = await meRes.json();
+    const meBody = meResponseSchema.parse(await meRes.json());
     expect(meBody.user.preferredLocale).toBe('zh-CN');
 
     const outRes = await logoutPost();
@@ -84,7 +90,7 @@ describe('User Settings & Locale Preference API Integration', () => {
       }),
     );
     expect(reLoginRes.status).toBe(200);
-    const reLoginBody = await reLoginRes.json();
+    const reLoginBody = loginResponseSchema.parse(await reLoginRes.json());
     expect(reLoginBody.user.preferredLocale).toBe('zh-CN');
   });
 
@@ -99,8 +105,8 @@ describe('User Settings & Locale Preference API Integration', () => {
       }),
     );
     expect(signupZhRes.status).toBe(201);
-    const zhBody = await signupZhRes.json();
-    expect(zhBody.user.user.preferredLocale).toBe('zh-CN');
+    const zhBody = signupResponseSchema.parse(await signupZhRes.json());
+    expect(zhBody.user?.user.preferredLocale).toBe('zh-CN');
     expect(signupZhRes.headers.get('set-cookie')).toContain(
       `${LOCALE_COOKIE_NAME}=zh-CN`,
     );
@@ -114,7 +120,7 @@ describe('User Settings & Locale Preference API Integration', () => {
       }),
     );
     expect(signupDefaultRes.status).toBe(201);
-    const defaultBody = await signupDefaultRes.json();
-    expect(defaultBody.user.user.preferredLocale).toBe('en');
+    const defaultBody = signupResponseSchema.parse(await signupDefaultRes.json());
+    expect(defaultBody.user?.user.preferredLocale).toBe('en');
   });
 });

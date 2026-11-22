@@ -6,6 +6,11 @@ import {
   GET as getConsultations,
   POST as postConsultation,
 } from '@/app/api/consultations/route';
+import {
+  apiErrorBodySchema,
+  consultationMutationResponseSchema,
+  ownConsultationsResponseSchema,
+} from '@/lib/contracts';
 import { setTestRepository } from '@/lib/repositories';
 import { createTestRepo, jsonRequest } from './helpers';
 
@@ -39,7 +44,7 @@ describe('Student Consultations API Integration', () => {
       }),
     );
     expect(createRes.status).toBe(201);
-    const { consultation } = await createRes.json();
+    const { consultation } = consultationMutationResponseSchema.parse(await createRes.json());
     expect(consultation.status).toBe('scheduled');
     expect(consultation.reason).toBe('Final capstone system design review');
 
@@ -52,7 +57,7 @@ describe('Student Consultations API Integration', () => {
       { params: Promise.resolve({ id: consultation.id }) },
     );
     expect(completeRes.status).toBe(200);
-    const completedData = await completeRes.json();
+    const completedData = consultationMutationResponseSchema.parse(await completeRes.json());
     expect(completedData.consultation.status).toBe('completed');
     expect(completedData.consultation.completedAt).toBeTruthy();
 
@@ -65,7 +70,7 @@ describe('Student Consultations API Integration', () => {
       { params: Promise.resolve({ id: consultation.id }) },
     );
     expect(incompleteRes.status).toBe(200);
-    const incompleteData = await incompleteRes.json();
+    const incompleteData = consultationMutationResponseSchema.parse(await incompleteRes.json());
     expect(incompleteData.consultation.status).toBe('scheduled');
     expect(incompleteData.consultation.completedAt).toBeNull();
 
@@ -81,7 +86,7 @@ describe('Student Consultations API Integration', () => {
       { params: Promise.resolve({ id: consultation.id }) },
     );
     expect(rescheduleRes.status).toBe(200);
-    const rescheduledData = await rescheduleRes.json();
+    const rescheduledData = consultationMutationResponseSchema.parse(await rescheduleRes.json());
     expect(rescheduledData.consultation.startsAt).toBe(start2);
     expect(rescheduledData.consultation.endsAt).toBe(end2);
 
@@ -93,7 +98,7 @@ describe('Student Consultations API Integration', () => {
       { params: Promise.resolve({ id: consultation.id }) },
     );
     expect(cancelRes.status).toBe(200);
-    const cancelledData = await cancelRes.json();
+    const cancelledData = consultationMutationResponseSchema.parse(await cancelRes.json());
     expect(cancelledData.consultation.status).toBe('cancelled');
 
     // Further mutation on cancelled booking returns 409
@@ -105,6 +110,7 @@ describe('Student Consultations API Integration', () => {
       { params: Promise.resolve({ id: consultation.id }) },
     );
     expect(rejectedRes.status).toBe(409);
+    apiErrorBodySchema.parse(await rejectedRes.json());
   });
 
   test('filter and search consultations returns accurate subset and overall stats', async () => {
@@ -112,7 +118,7 @@ describe('Student Consultations API Integration', () => {
       new Request('http://localhost:3000/api/consultations?status=completed&search=Algorithms'),
     );
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = ownConsultationsResponseSchema.parse(await res.json());
     expect(data.consultations).toHaveLength(1);
     expect(data.consultations[0].status).toBe('completed');
     expect(data.stats.total).toBe(3);

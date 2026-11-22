@@ -17,7 +17,10 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { consultationMutationResponseSchema } from '@/lib/contracts';
+import { createBookingFormSchema, zodFormValidate } from '@/lib/form-zod';
 import type { Consultation } from '@/lib/types';
+import { createConsultationSchema } from '@/lib/validation';
 import {
   getDefaultBookingRange,
   MANTINE_DATETIME_FORMAT,
@@ -54,22 +57,7 @@ function BookConsultationForm({
       startsAt: initialRange.startsAt as string | null,
       endsAt: initialRange.endsAt as string | null,
     },
-    validate: {
-      firstName: (v) =>
-        v.trim().length > 0 ? null : messages.auth.firstNameRequired,
-      lastName: (v) =>
-        v.trim().length > 0 ? null : messages.auth.lastNameRequired,
-      reason: (v) =>
-        v.trim().length >= 3 ? null : messages.booking.reasonError,
-      startsAt: (v) => (v ? null : messages.booking.startsAtRequired),
-      endsAt: (v, values) => {
-        if (!v) return messages.booking.endsAtRequired;
-        if (values.startsAt && !dayjs(v).isAfter(dayjs(values.startsAt))) {
-          return messages.booking.endsAfterStartsError;
-        }
-        return null;
-      },
-    },
+    validate: zodFormValidate(createBookingFormSchema(messages)),
   });
 
   const handleSubmit = form.onSubmit(async (values) => {
@@ -84,19 +72,18 @@ function BookConsultationForm({
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await apiRequest<{ consultation: Consultation }>(
-        '/api/consultations',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            firstName: values.firstName.trim(),
-            lastName: values.lastName.trim(),
-            reason: values.reason.trim(),
-            startsAt: startsIso,
-            endsAt: endsIso,
-          }),
+      const res = await apiRequest('/api/consultations', {
+        method: 'POST',
+        requestSchema: createConsultationSchema,
+        responseSchema: consultationMutationResponseSchema,
+        body: {
+          firstName: values.firstName.trim(),
+          lastName: values.lastName.trim(),
+          reason: values.reason.trim(),
+          startsAt: startsIso,
+          endsAt: endsIso,
         },
-      );
+      });
       notifications.show({
         color: 'teal',
         title: messages.booking.bookedTitle,

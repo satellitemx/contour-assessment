@@ -1,4 +1,5 @@
 import { requireAuth } from '@/lib/auth-guard';
+import { consultationMutationResponseSchema } from '@/lib/contracts';
 import {
   AppError,
   handleApiError,
@@ -46,7 +47,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       input,
     );
 
-    return jsonOk({ consultation });
+    return jsonOk({ consultation }, consultationMutationResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }

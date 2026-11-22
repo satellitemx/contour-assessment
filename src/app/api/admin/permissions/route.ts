@@ -1,4 +1,5 @@
 import { requirePermissions } from '@/lib/auth-guard';
+import { permissionsResponseSchema } from '@/lib/contracts';
 import { handleApiError, jsonOk } from '@/lib/http';
 import { PERMISSIONS } from '@/lib/permissions';
 import { getLmsRepository } from '@/lib/repositories';
@@ -17,7 +18,7 @@ export async function GET() {
     const repo = getLmsRepository();
     const permissions = await repo.listPermissions();
 
-    return jsonOk({ permissions });
+    return jsonOk({ permissions }, permissionsResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }

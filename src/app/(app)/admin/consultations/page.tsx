@@ -25,15 +25,17 @@ import { StatusBadge } from '@/components/consultations/StatusBadge';
 import { PermissionGuard } from '@/components/layout/PermissionGuard';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import {
+  adminConsultationsResponseSchema,
+  consultationStatusFilterSchema,
+} from '@/lib/contracts';
 import { formatMessage } from '@/lib/i18n';
 import { PERMISSIONS } from '@/lib/permissions';
 import type {
   AdminConsultation,
   ConsultationStats,
-  PaginatedConsultationsResult,
+  ConsultationStatusFilter,
 } from '@/lib/types';
-
-type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled';
 
 const EMPTY_STATS: ConsultationStats = {
   total: 0,
@@ -49,7 +51,8 @@ function AdminConsultationsContent() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] =
+    useState<ConsultationStatusFilter>('all');
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch] = useDebouncedValue(searchText, 200);
   const [loading, setLoading] = useState(true);
@@ -68,9 +71,12 @@ function AdminConsultationsContent() {
           params.set('search', debouncedSearch.trim());
         }
 
-        const res = await apiRequest<PaginatedConsultationsResult>(
+        const res = await apiRequest(
           `/api/admin/consultations?${params.toString()}`,
-          { cache: 'no-store' },
+          {
+            cache: 'no-store',
+            responseSchema: adminConsultationsResponseSchema,
+          },
         );
 
         if (!active) return;
@@ -130,8 +136,11 @@ function AdminConsultationsContent() {
             <SegmentedControl
               value={statusFilter}
               onChange={(val) => {
-                setStatusFilter(val as StatusFilter);
-                setPage(1);
+                const parsed = consultationStatusFilterSchema.safeParse(val);
+                if (parsed.success) {
+                  setStatusFilter(parsed.data);
+                  setPage(1);
+                }
               }}
               data={[
                 { label: messages.consultationStatus.all, value: 'all' },

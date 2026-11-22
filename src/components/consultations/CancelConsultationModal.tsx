@@ -6,7 +6,9 @@ import { IconAlertTriangle, IconBan } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { consultationMutationResponseSchema } from '@/lib/contracts';
 import type { Consultation } from '@/lib/types';
+import { cancelConsultationSchema } from '@/lib/validation';
 import { formatConsultationRange } from './date-utils';
 
 interface CancelConsultationModalProps {
@@ -29,13 +31,12 @@ export function CancelConsultationModal({
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await apiRequest<{ consultation: Consultation }>(
-        `/api/consultations/${consultation.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ action: 'cancel' }),
-        },
-      );
+      const res = await apiRequest(`/api/consultations/${consultation.id}`, {
+        method: 'PATCH',
+        requestSchema: cancelConsultationSchema,
+        responseSchema: consultationMutationResponseSchema,
+        body: { action: 'cancel' },
+      });
       notifications.show({
         color: 'gray',
         title: messages.cancelModal.successTitle,

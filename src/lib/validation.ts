@@ -1,10 +1,19 @@
 import { z } from 'zod';
-import { ALL_PERMISSION_KEYS, slugifyRoleName } from './permissions';
-import type { Consultation, PermissionKey } from './types';
+import {
+  consultationStatusFilterSchema,
+  consultationStatusSchema,
+  localeSchema,
+  permissionKeySchema,
+} from './contracts';
+import { slugifyRoleName } from './permissions';
+import type { Consultation } from './types';
 
-const permissionKeyEnum = z.enum(
-  ALL_PERMISSION_KEYS as [PermissionKey, ...PermissionKey[]],
-);
+export {
+  consultationStatusFilterSchema,
+  consultationStatusSchema,
+  localeSchema,
+  permissionKeySchema,
+};
 
 const MIN_DURATION_MS = 5 * 60 * 1000;
 const MAX_DURATION_MS = 12 * 60 * 60 * 1000;
@@ -59,8 +68,6 @@ function validateIsoDatetimeRange(
     });
   }
 }
-
-export const localeSchema = z.enum(['en', 'zh-CN']);
 
 export const signupSchema = z.object({
   email: z.string().trim().email('Please enter a valid email address.').toLowerCase(),
@@ -172,11 +179,13 @@ export const createRoleSchema = z
       .default(''),
     isDefault: z.boolean().default(false),
     permissionKeys: z
-      .array(permissionKeyEnum)
+      .array(permissionKeySchema)
       .min(1, 'Select at least one access attribute for this role.'),
   })
   .transform((data) => {
-    const resolvedSlug = data.slug ? slugifyRoleName(data.slug) : slugifyRoleName(data.name);
+    const resolvedSlug = data.slug
+      ? slugifyRoleName(data.slug)
+      : slugifyRoleName(data.name);
     return {
       ...data,
       slug: resolvedSlug,
@@ -203,7 +212,7 @@ export const updateRoleSchema = z
       .optional(),
     isDefault: z.boolean().optional(),
     permissionKeys: z
-      .array(permissionKeyEnum)
+      .array(permissionKeySchema)
       .min(1, 'Select at least one access attribute for this role.')
       .optional(),
   })
@@ -218,10 +227,12 @@ export const assignUserRolesSchema = z.object({
   roleIds: z.array(z.string().uuid('Each role ID must be a valid UUID.')),
 });
 
-export const uuidParamSchema = z.string().uuid('Resource identifier must be a valid UUID.');
+export const uuidParamSchema = z
+  .string()
+  .uuid('Resource identifier must be a valid UUID.');
 
 export const consultationQuerySchema = z.object({
-  status: z.enum(['all', 'scheduled', 'completed', 'cancelled']).default('all'),
+  status: consultationStatusFilterSchema.default('all'),
   search: z.string().trim().max(120).default(''),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -232,50 +243,74 @@ export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
 export type AssignUserRolesInput = z.infer<typeof assignUserRolesSchema>;
 export type ConsultationQueryInput = z.infer<typeof consultationQuerySchema>;
 
-export interface TransitionValidationResult {
-  valid: boolean;
-  reason?: string;
-}
+export const transitionValidationResultSchema = z.object({
+  valid: z.boolean(),
+  reason: z.string().optional(),
+});
+
+export type TransitionValidationResult = z.infer<
+  typeof transitionValidationResultSchema
+>;
+
+export const consultationTransitionSchema = z
+  .object({
+    status: consultationStatusSchema,
+    update: updateConsultationSchema,
+  })
+  .superRefine(({ status, update }, ctx) => {
+    if (update.action === 'toggle_complete') {
+      if (status === 'cancelled') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Cancelled consultations cannot be marked complete or incomplete.',
+        });
+      }
+      return;
+    }
+
+    if (update.action === 'reschedule') {
+      if (status !== 'scheduled') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Only scheduled consultations can be rescheduled (current status: ${status}).`,
+        });
+      }
+      return;
+    }
+
+    if (update.action === 'cancel') {
+      if (status === 'cancelled') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'This consultation is already cancelled.',
+        });
+      } else if (status === 'completed') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'Completed consultations cannot be cancelled. Mark it incomplete first if needed.',
+        });
+      }
+    }
+  });
 
 export function validateConsultationTransition(
   consultation: Pick<Consultation, 'status'>,
   update: UpdateConsultationInput,
 ): TransitionValidationResult {
-  if (update.action === 'toggle_complete') {
-    if (consultation.status === 'cancelled') {
-      return {
-        valid: false,
-        reason: 'Cancelled consultations cannot be marked complete or incomplete.',
-      };
-    }
+  const parsed = consultationTransitionSchema.safeParse({
+    status: consultation.status,
+    update,
+  });
+
+  if (parsed.success) {
     return { valid: true };
   }
 
-  if (update.action === 'reschedule') {
-    if (consultation.status !== 'scheduled') {
-      return {
-        valid: false,
-        reason: `Only scheduled consultations can be rescheduled (current status: ${consultation.status}).`,
-      };
-    }
-    return { valid: true };
-  }
-
-  if (update.action === 'cancel') {
-    if (consultation.status === 'cancelled') {
-      return {
-        valid: false,
-        reason: 'This consultation is already cancelled.',
-      };
-    }
-    if (consultation.status === 'completed') {
-      return {
-        valid: false,
-        reason: 'Completed consultations cannot be cancelled. Mark it incomplete first if needed.',
-      };
-    }
-    return { valid: true };
-  }
-
-  return { valid: false, reason: 'Unsupported consultation update action.' };
+  return {
+    valid: false,
+    reason:
+      parsed.error.issues[0]?.message ||
+      'Unsupported consultation update action.',
+  };
 }

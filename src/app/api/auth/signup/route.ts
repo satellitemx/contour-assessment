@@ -1,3 +1,4 @@
+import { signupResponseSchema } from '@/lib/contracts';
 import {
   handleApiError,
   jsonCreated,
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       emailRedirectTo: `${origin.replace(/\/+$/, '')}/api/auth/callback`,
     });
 
-    const response = jsonCreated(result);
+    const response = jsonCreated(result, signupResponseSchema);
     if (result.user) {
       response.cookies.set(
         LOCALE_COOKIE_NAME,

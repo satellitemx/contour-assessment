@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { meResponseSchema, successResponseSchema } from '@/lib/contracts';
 import { hasAnyPermission, hasPermission } from '@/lib/permissions';
 import type { AuthUserContext, PermissionKey } from '@/lib/types';
 
@@ -27,8 +28,9 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function fetchCurrentAuth(): Promise<AuthUserContext | null> {
   try {
-    return await apiRequest<AuthUserContext>('/api/auth/me', {
+    return await apiRequest('/api/auth/me', {
       cache: 'no-store',
+      responseSchema: meResponseSchema,
     });
   } catch (err) {
     if (err instanceof ClientApiError && err.status === 401) {
@@ -65,7 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiRequest('/api/auth/logout', { method: 'POST' });
+      await apiRequest('/api/auth/logout', {
+        method: 'POST',
+        responseSchema: successResponseSchema,
+      });
     } finally {
       setAuth(null);
       router.replace('/login');

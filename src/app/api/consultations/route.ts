@@ -1,5 +1,9 @@
 import { requirePermissions } from '@/lib/auth-guard';
 import {
+  consultationMutationResponseSchema,
+  ownConsultationsResponseSchema,
+} from '@/lib/contracts';
+import {
   handleApiError,
   jsonCreated,
   jsonOk,
@@ -27,7 +31,7 @@ export async function GET(request: Request) {
       search: query.search,
     });
 
-    return jsonOk(result);
+    return jsonOk(result, ownConsultationsResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
     const repo = getLmsRepository();
     const consultation = await repo.createConsultation(auth.user.id, input);
 
-    return jsonCreated({ consultation });
+    return jsonCreated({ consultation }, consultationMutationResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }

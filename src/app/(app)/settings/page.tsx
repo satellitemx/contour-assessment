@@ -21,7 +21,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { localeSchema, userSettingsResponseSchema } from '@/lib/contracts';
 import type { AuthUserContext, Locale, UserProfile } from '@/lib/types';
+import { updateUserSettingsSchema } from '@/lib/validation';
 
 function SettingsForm({
   auth,
@@ -46,9 +48,11 @@ function SettingsForm({
     setSaving(true);
     setErrorMsg(null);
     try {
-      const res = await apiRequest<{ user: UserProfile }>('/api/user/settings', {
+      const res = await apiRequest('/api/user/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ preferredLocale: selectedLocale }),
+        requestSchema: updateUserSettingsSchema,
+        responseSchema: userSettingsResponseSchema,
+        body: { preferredLocale: selectedLocale },
       });
       onUpdated(res.user);
       notifications.show({
@@ -141,8 +145,9 @@ function SettingsForm({
                 allowDeselect={false}
                 value={selectedLocale}
                 onChange={(val) => {
-                  if (val === 'en' || val === 'zh-CN') {
-                    setSelectedLocale(val);
+                  const parsed = localeSchema.safeParse(val);
+                  if (parsed.success) {
+                    setSelectedLocale(parsed.data);
                   }
                 }}
                 data={[

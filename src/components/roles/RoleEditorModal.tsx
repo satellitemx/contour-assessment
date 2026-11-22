@@ -21,6 +21,8 @@ import { IconAlertCircle, IconShieldCheck } from '@tabler/icons-react';
 import { useState } from 'react';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { roleMutationResponseSchema } from '@/lib/contracts';
+import { createRoleFormSchema, zodFormValidate } from '@/lib/form-zod';
 import { formatMessage } from '@/lib/i18n';
 import {
   PERMISSION_CATALOG,
@@ -28,6 +30,7 @@ import {
   type PermissionCatalogEntry,
 } from '@/lib/permissions';
 import type { PermissionKey, RoleSummary } from '@/lib/types';
+import { createRoleSchema, updateRoleSchema } from '@/lib/validation';
 
 interface RoleEditorModalProps {
   opened: boolean;
@@ -64,12 +67,7 @@ function RoleEditorForm({
       isDefault: editingRole?.isDefault ?? false,
       permissionKeys: (editingRole?.permissionKeys ?? []) as PermissionKey[],
     },
-    validate: {
-      name: (v) =>
-        v.trim().length >= 2 ? null : messages.roleEditor.nameMinError,
-      permissionKeys: (v) =>
-        v.length >= 1 ? null : messages.roleEditor.attributesMinError,
-    },
+    validate: zodFormValidate(createRoleFormSchema(messages)),
   });
 
   const togglePermission = (key: PermissionKey, checked: boolean) => {
@@ -85,18 +83,17 @@ function RoleEditorForm({
     try {
       const trimmedName = values.name.trim();
       if (editingRole) {
-        await apiRequest<{ role: RoleSummary }>(
-          `/api/admin/roles/${editingRole.id}`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({
-              name: trimmedName,
-              description: values.description.trim(),
-              isDefault: values.isDefault,
-              permissionKeys: values.permissionKeys,
-            }),
+        await apiRequest(`/api/admin/roles/${editingRole.id}`, {
+          method: 'PATCH',
+          requestSchema: updateRoleSchema,
+          responseSchema: roleMutationResponseSchema,
+          body: {
+            name: trimmedName,
+            description: values.description.trim(),
+            isDefault: values.isDefault,
+            permissionKeys: values.permissionKeys,
           },
-        );
+        });
         notifications.show({
           color: 'indigo',
           title: messages.roleEditor.updatedTitle,
@@ -105,15 +102,17 @@ function RoleEditorForm({
           }),
         });
       } else {
-        await apiRequest<{ role: RoleSummary }>('/api/admin/roles', {
+        await apiRequest('/api/admin/roles', {
           method: 'POST',
-          body: JSON.stringify({
+          requestSchema: createRoleSchema,
+          responseSchema: roleMutationResponseSchema,
+          body: {
             name: trimmedName,
             slug: values.slug.trim() || slugifyRoleName(values.name),
             description: values.description.trim(),
             isDefault: values.isDefault,
             permissionKeys: values.permissionKeys,
-          }),
+          },
         });
         notifications.show({
           color: 'teal',

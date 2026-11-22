@@ -3,6 +3,13 @@ import { POST as loginPost } from '@/app/api/auth/login/route';
 import { POST as logoutPost } from '@/app/api/auth/logout/route';
 import { GET as meGet } from '@/app/api/auth/me/route';
 import { POST as signupPost } from '@/app/api/auth/signup/route';
+import {
+  apiErrorBodySchema,
+  loginResponseSchema,
+  meResponseSchema,
+  signupResponseSchema,
+  successResponseSchema,
+} from '@/lib/contracts';
 import { PERMISSIONS } from '@/lib/permissions';
 import { setTestRepository } from '@/lib/repositories';
 import { createTestRepo, jsonRequest } from './helpers';
@@ -20,6 +27,8 @@ describe('Auth API Integration', () => {
   test('unauthenticated /api/auth/me returns 401', async () => {
     const res = await meGet();
     expect(res.status).toBe(401);
+    const err = apiErrorBodySchema.parse(await res.json());
+    expect(err.error.code).toBe('UNAUTHORIZED');
   });
 
   test('signup creates user, assigns default role, and establishes session', async () => {
@@ -33,15 +42,15 @@ describe('Auth API Integration', () => {
     );
 
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data = signupResponseSchema.parse(await res.json());
     expect(data.requiresEmailConfirmation).toBe(false);
-    expect(data.user.user.email).toBe('newlearner@example.org');
-    expect(data.user.roles.map((r: { slug: string }) => r.slug)).toEqual(['learner']);
-    expect(data.user.effectivePermissions).toContain(PERMISSIONS.CONSULTATIONS_CREATE_OWN);
+    expect(data.user?.user.email).toBe('newlearner@example.org');
+    expect(data.user?.roles.map((r) => r.slug)).toEqual(['learner']);
+    expect(data.user?.effectivePermissions).toContain(PERMISSIONS.CONSULTATIONS_CREATE_OWN);
 
     const meRes = await meGet();
     expect(meRes.status).toBe(200);
-    const meData = await meRes.json();
+    const meData = meResponseSchema.parse(await meRes.json());
     expect(meData.user.email).toBe('newlearner@example.org');
   });
 
@@ -73,14 +82,16 @@ describe('Auth API Integration', () => {
       }),
     );
     expect(goodLogin.status).toBe(200);
-    const loginBody = await goodLogin.json();
+    const loginBody = loginResponseSchema.parse(await goodLogin.json());
     expect(loginBody.user.email).toBe('student@example.org');
 
     const meBeforeLogout = await meGet();
     expect(meBeforeLogout.status).toBe(200);
+    meResponseSchema.parse(await meBeforeLogout.json());
 
     const out = await logoutPost();
     expect(out.status).toBe(200);
+    successResponseSchema.parse(await out.json());
 
     const meAfterLogout = await meGet();
     expect(meAfterLogout.status).toBe(401);

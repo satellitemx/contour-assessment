@@ -30,13 +30,10 @@ import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { signupResponseSchema } from '@/lib/contracts';
+import { createSignupFormSchema, zodFormValidate } from '@/lib/form-zod';
 import { getDefaultLandingRoute } from '@/lib/permissions';
-import type { AuthUserContext } from '@/lib/types';
-
-interface SignupApiResponse {
-  user: AuthUserContext | null;
-  requiresEmailConfirmation: boolean;
-}
+import { signupSchema } from '@/lib/validation';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -53,16 +50,7 @@ export default function SignupPage() {
       email: '',
       password: '',
     },
-    validate: {
-      firstName: (value) =>
-        value.trim().length > 0 ? null : messages.auth.firstNameRequired,
-      lastName: (value) =>
-        value.trim().length > 0 ? null : messages.auth.lastNameRequired,
-      email: (value) =>
-        /^\S+@\S+\.\S+$/.test(value.trim()) ? null : messages.auth.emailInvalid,
-      password: (value) =>
-        value.length >= 8 ? null : messages.auth.passwordMinError,
-    },
+    validate: zodFormValidate(createSignupFormSchema(messages)),
   });
 
   const handleSubmit = form.onSubmit(async (values) => {
@@ -70,15 +58,17 @@ export default function SignupPage() {
     setErrorMsg(null);
     setConfirmationSent(false);
     try {
-      const res = await apiRequest<SignupApiResponse>('/api/auth/signup', {
+      const res = await apiRequest('/api/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({
+        requestSchema: signupSchema,
+        responseSchema: signupResponseSchema,
+        body: {
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
           email: values.email.trim(),
           password: values.password,
           preferredLocale: locale,
-        }),
+        },
       });
 
       if (res.requiresEmailConfirmation || !res.user) {

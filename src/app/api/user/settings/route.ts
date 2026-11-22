@@ -1,4 +1,5 @@
 import { requireAuth } from '@/lib/auth-guard';
+import { userSettingsResponseSchema } from '@/lib/contracts';
 import { handleApiError, jsonOk, parseJsonBody } from '@/lib/http';
 import { LOCALE_COOKIE_NAME } from '@/lib/i18n';
 import { getLmsRepository } from '@/lib/repositories';
@@ -13,7 +14,7 @@ export async function PATCH(request: Request) {
     const repo = getLmsRepository();
     const user = await repo.updateUserSettings(auth.user.id, input);
 
-    const response = jsonOk({ user });
+    const response = jsonOk({ user }, userSettingsResponseSchema);
     response.cookies.set(LOCALE_COOKIE_NAME, user.preferredLocale, {
       path: '/',
       sameSite: 'lax',

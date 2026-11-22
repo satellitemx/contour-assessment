@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
+import { apiErrorBodySchema } from './contracts';
 import type { ApiErrorBody } from './types';
 
 export class AppError extends Error {
@@ -16,61 +17,70 @@ export class AppError extends Error {
   }
 }
 
-export function jsonOk<T>(data: T, status = 200): NextResponse<T> {
-  return NextResponse.json(data, { status });
+export function jsonOk<TSchema extends z.ZodTypeAny>(
+  data: z.input<TSchema>,
+  schema: TSchema,
+  status = 200,
+): NextResponse<z.output<TSchema>> {
+  const validated = schema.parse(data);
+  return NextResponse.json(validated, { status });
 }
 
-export function jsonCreated<T>(data: T): NextResponse<T> {
-  return NextResponse.json(data, { status: 201 });
+export function jsonCreated<TSchema extends z.ZodTypeAny>(
+  data: z.input<TSchema>,
+  schema: TSchema,
+): NextResponse<z.output<TSchema>> {
+  return jsonOk(data, schema, 201);
 }
 
 export function handleApiError(error: unknown): NextResponse<ApiErrorBody> {
   if (error instanceof ZodError) {
     const firstIssue = error.issues[0];
-    return NextResponse.json(
-      {
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: firstIssue?.message || 'Validation failed.',
-          details: error.flatten(),
-        },
+    const body = apiErrorBodySchema.parse({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: firstIssue?.message || 'Validation failed.',
+        details: error.flatten(),
       },
-      { status: 400 },
-    );
+    });
+    return NextResponse.json(body, { status: 400 });
   }
 
   if (error instanceof AppError) {
-    return NextResponse.json(
-      {
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        },
+    const body = apiErrorBodySchema.parse({
+      error: {
+        code: error.code,
+        message: error.message,
+        details: error.details,
       },
-      { status: error.status },
-    );
+    });
+    return NextResponse.json(body, { status: error.status });
   }
 
   console.error('[API Error]', error);
-  return NextResponse.json(
-    {
-      error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected server error occurred.',
-      },
+  const body = apiErrorBodySchema.parse({
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected server error occurred.',
     },
-    { status: 500 },
-  );
+  });
+  return NextResponse.json(body, { status: 500 });
 }
 
-export function sanitizeRedirectPath(rawPath: string | null | undefined, fallback = '/'): string {
-  if (!rawPath) return fallback;
-  const trimmed = rawPath.trim();
-  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {
-    return fallback;
-  }
-  return trimmed;
+export const safeRedirectPathSchema = z
+  .string()
+  .trim()
+  .refine(
+    (path) => path.startsWith('/') && !path.startsWith('//') && !path.includes('\\'),
+    'Redirect path must be a safe relative path.',
+  );
+
+export function sanitizeRedirectPath(
+  rawPath: string | null | undefined,
+  fallback = '/',
+): string {
+  const parsed = safeRedirectPathSchema.safeParse(rawPath);
+  return parsed.success ? parsed.data : fallback;
 }
 
 export function isE2ETestMode(): boolean {

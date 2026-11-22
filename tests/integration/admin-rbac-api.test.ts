@@ -9,6 +9,13 @@ import { PUT as assignUserRolesPut } from '@/app/api/admin/users/[id]/roles/rout
 import { GET as usersGet } from '@/app/api/admin/users/route';
 import { POST as loginPost } from '@/app/api/auth/login/route';
 import { GET as ownConsultationsGet } from '@/app/api/consultations/route';
+import {
+  adminConsultationsResponseSchema,
+  apiErrorBodySchema,
+  roleMutationResponseSchema,
+  userMutationResponseSchema,
+  usersListResponseSchema,
+} from '@/lib/contracts';
 import { PERMISSIONS } from '@/lib/permissions';
 import { setTestRepository } from '@/lib/repositories';
 import { SEEDED_IDS } from '@/lib/repositories/memory-repository';
@@ -53,7 +60,7 @@ describe('Admin & Attribute-Composed RBAC API Integration', () => {
       new Request('http://localhost:3000/api/admin/consultations?search=Maya'),
     );
     expect(adminConsults.status).toBe(200);
-    const data = await adminConsults.json();
+    const data = adminConsultationsResponseSchema.parse(await adminConsults.json());
     expect(data.consultations.length).toBe(3);
     expect(data.consultations[0].studentEmail).toBe('student@example.org');
 
@@ -64,6 +71,7 @@ describe('Admin & Attribute-Composed RBAC API Integration', () => {
       }),
     );
     expect(createRoleAttempt.status).toBe(403);
+    apiErrorBodySchema.parse(await createRoleAttempt.json());
   });
 
   test('super admin composes custom role, assigns to user, and user dynamically inherits exact attributes', async () => {
@@ -86,7 +94,7 @@ describe('Admin & Attribute-Composed RBAC API Integration', () => {
       }),
     );
     expect(createRoleRes.status).toBe(201);
-    const { role: customRole } = await createRoleRes.json();
+    const { role: customRole } = roleMutationResponseSchema.parse(await createRoleRes.json());
     expect(customRole.slug).toBe('peer-mentor-reviewer');
     expect(customRole.permissionKeys).toEqual([
       PERMISSIONS.CONSULTATIONS_READ_ALL,
@@ -103,7 +111,7 @@ describe('Admin & Attribute-Composed RBAC API Integration', () => {
       { params: Promise.resolve({ id: SEEDED_IDS.users.student }) },
     );
     expect(assignRes.status).toBe(200);
-    const { user: updatedUser } = await assignRes.json();
+    const { user: updatedUser } = userMutationResponseSchema.parse(await assignRes.json());
     expect(updatedUser.effectivePermissions).toEqual([
       PERMISSIONS.CONSULTATIONS_READ_ALL,
       PERMISSIONS.CONSULTATIONS_READ_OWN,
@@ -183,7 +191,7 @@ describe('Admin & Attribute-Composed RBAC API Integration', () => {
     // Verify users endpoint works
     const usersRes = await usersGet();
     expect(usersRes.status).toBe(200);
-    const { users } = await usersRes.json();
+    const { users } = usersListResponseSchema.parse(await usersRes.json());
     expect(users.length).toBeGreaterThanOrEqual(3);
   });
 });

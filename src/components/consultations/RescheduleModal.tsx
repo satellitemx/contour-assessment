@@ -9,7 +9,10 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { consultationMutationResponseSchema } from '@/lib/contracts';
+import { createRescheduleFormSchema, zodFormValidate } from '@/lib/form-zod';
 import type { Consultation } from '@/lib/types';
+import { rescheduleConsultationSchema } from '@/lib/validation';
 import {
   MANTINE_DATETIME_FORMAT,
   mantineValueToIso,
@@ -43,16 +46,7 @@ function RescheduleForm({
       startsAt: toMantineDateTimeValue(consultation.startsAt) as string | null,
       endsAt: toMantineDateTimeValue(consultation.endsAt) as string | null,
     },
-    validate: {
-      startsAt: (v) => (v ? null : messages.booking.startsAtRequired),
-      endsAt: (v, values) => {
-        if (!v) return messages.booking.endsAtRequired;
-        if (values.startsAt && !dayjs(v).isAfter(dayjs(values.startsAt))) {
-          return messages.booking.endsAfterStartsError;
-        }
-        return null;
-      },
-    },
+    validate: zodFormValidate(createRescheduleFormSchema(messages)),
   });
 
   const handleSubmit = form.onSubmit(async (values) => {
@@ -67,17 +61,16 @@ function RescheduleForm({
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const res = await apiRequest<{ consultation: Consultation }>(
-        `/api/consultations/${consultation.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            action: 'reschedule',
-            startsAt: startsIso,
-            endsAt: endsIso,
-          }),
+      const res = await apiRequest(`/api/consultations/${consultation.id}`, {
+        method: 'PATCH',
+        requestSchema: rescheduleConsultationSchema,
+        responseSchema: consultationMutationResponseSchema,
+        body: {
+          action: 'reschedule',
+          startsAt: startsIso,
+          endsAt: endsIso,
         },
-      );
+      });
       notifications.show({
         color: 'indigo',
         title: messages.reschedule.successTitle,

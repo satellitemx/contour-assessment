@@ -32,6 +32,11 @@ import { useI18n } from '@/components/providers/I18nProvider';
 import { RoleEditorModal } from '@/components/roles/RoleEditorModal';
 import { UserRolesSection } from '@/components/roles/UserRolesSection';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import {
+  rolesListResponseSchema,
+  successResponseSchema,
+  usersListResponseSchema,
+} from '@/lib/contracts';
 import { formatMessage } from '@/lib/i18n';
 import { PERMISSIONS } from '@/lib/permissions';
 import type { RoleSummary, UserWithRoles } from '@/lib/types';
@@ -59,11 +64,13 @@ function AdminRolesContent() {
     void (async () => {
       try {
         const [rolesRes, usersRes] = await Promise.all([
-          apiRequest<{ roles: RoleSummary[] }>('/api/admin/roles', {
+          apiRequest('/api/admin/roles', {
             cache: 'no-store',
+            responseSchema: rolesListResponseSchema,
           }),
-          apiRequest<{ users: UserWithRoles[] }>('/api/admin/users', {
+          apiRequest('/api/admin/users', {
             cache: 'no-store',
+            responseSchema: usersListResponseSchema,
           }),
         ]);
         if (!active) return;
@@ -96,6 +103,7 @@ function AdminRolesContent() {
     try {
       await apiRequest(`/api/admin/roles/${deleteTarget.id}`, {
         method: 'DELETE',
+        responseSchema: successResponseSchema,
       });
       notifications.show({
         color: 'gray',

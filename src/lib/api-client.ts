@@ -1,4 +1,5 @@
-import type { ApiErrorBody } from './types';
+import { z } from 'zod';
+import { apiErrorBodySchema } from './contracts';
 
 export class ClientApiError extends Error {
   readonly status: number;
@@ -14,40 +15,87 @@ export class ClientApiError extends Error {
   }
 }
 
-export async function apiRequest<T>(
+export interface ApiRequestOptions<TResponse, TRequest = unknown>
+  extends Omit<RequestInit, 'body'> {
+  responseSchema: z.ZodType<TResponse>;
+  requestSchema?: z.ZodType<unknown, z.ZodTypeDef, TRequest>;
+  body?: TRequest;
+}
+
+export async function apiRequest<TResponse, TRequest = unknown>(
   url: string,
-  options?: RequestInit,
-): Promise<T> {
-  const headers = new Headers(options?.headers);
-  if (options?.body && !headers.has('Content-Type')) {
+  options: ApiRequestOptions<TResponse, TRequest>,
+): Promise<TResponse> {
+  const { responseSchema, requestSchema, body, ...fetchOptions } = options;
+
+  let serializedBody: string | undefined;
+  if (body !== undefined) {
+    let payload: unknown = body;
+    if (requestSchema) {
+      const validated = requestSchema.safeParse(body);
+      if (!validated.success) {
+        const firstIssue = validated.error.issues[0];
+        throw new ClientApiError(
+          400,
+          'VALIDATION_ERROR',
+          firstIssue?.message || 'Request validation failed.',
+          validated.error.flatten(),
+        );
+      }
+      payload = validated.data;
+    }
+    serializedBody = JSON.stringify(payload);
+  }
+
+  const headers = new Headers(fetchOptions.headers);
+  if (serializedBody !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
+    body: serializedBody,
     headers,
     credentials: 'same-origin',
   });
 
   const text = await response.text();
-  let parsed: unknown = null;
+  let parsedJson: unknown = null;
   if (text) {
     try {
-      parsed = JSON.parse(text);
+      parsedJson = JSON.parse(text);
     } catch {
-      parsed = null;
+      parsedJson = null;
     }
   }
 
   if (!response.ok) {
-    const errBody = parsed as Partial<ApiErrorBody> | null;
+    const errParsed = apiErrorBodySchema.safeParse(parsedJson);
+    if (errParsed.success) {
+      throw new ClientApiError(
+        response.status,
+        errParsed.data.error.code,
+        errParsed.data.error.message,
+        errParsed.data.error.details,
+      );
+    }
+
     throw new ClientApiError(
       response.status,
-      errBody?.error?.code || 'REQUEST_FAILED',
-      errBody?.error?.message || `Request failed with status ${response.status}.`,
-      errBody?.error?.details,
+      'REQUEST_FAILED',
+      `Request failed with status ${response.status}.`,
     );
   }
 
-  return parsed as T;
+  const validatedResponse = responseSchema.safeParse(parsedJson);
+  if (!validatedResponse.success) {
+    throw new ClientApiError(
+      500,
+      'INVALID_API_RESPONSE',
+      'Received unexpected response shape from server.',
+      validatedResponse.error.flatten(),
+    );
+  }
+
+  return validatedResponse.data;
 }

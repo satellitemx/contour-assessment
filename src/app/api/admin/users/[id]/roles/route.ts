@@ -1,4 +1,5 @@
 import { requirePermissions } from '@/lib/auth-guard';
+import { userMutationResponseSchema } from '@/lib/contracts';
 import { handleApiError, jsonOk, parseJsonBody } from '@/lib/http';
 import { PERMISSIONS } from '@/lib/permissions';
 import { getLmsRepository } from '@/lib/repositories';
@@ -20,7 +21,7 @@ export async function PUT(request: Request, context: RouteContext) {
     const repo = getLmsRepository();
     const user = await repo.assignUserRoles(targetUserId, input, auth.user.id);
 
-    return jsonOk({ user });
+    return jsonOk({ user }, userMutationResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }

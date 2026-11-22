@@ -1,3 +1,4 @@
+import { permissionKeySchema } from './contracts';
 import type { PermissionKey } from './types';
 
 export const PERMISSIONS = {
@@ -94,7 +95,7 @@ export const PERMISSION_CATALOG_MAP = new Map<PermissionKey, PermissionCatalogEn
 );
 
 export function isKnownPermissionKey(value: string): value is PermissionKey {
-  return PERMISSION_CATALOG_MAP.has(value as PermissionKey);
+  return permissionKeySchema.safeParse(value).success;
 }
 
 export function hasPermission(

@@ -24,8 +24,10 @@ import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { loginResponseSchema } from '@/lib/contracts';
+import { createLoginFormSchema, zodFormValidate } from '@/lib/form-zod';
 import { getDefaultLandingRoute } from '@/lib/permissions';
-import type { AuthUserContext } from '@/lib/types';
+import { loginSchema } from '@/lib/validation';
 
 interface LoginFormProps {
   nextPath?: string;
@@ -46,24 +48,21 @@ export function LoginForm({ nextPath, errorCode }: LoginFormProps) {
       email: '',
       password: '',
     },
-    validate: {
-      email: (value) =>
-        /^\S+@\S+\.\S+$/.test(value.trim()) ? null : messages.auth.emailInvalid,
-      password: (value) =>
-        value.length > 0 ? null : messages.auth.passwordRequired,
-    },
+    validate: zodFormValidate(createLoginFormSchema(messages)),
   });
 
   const handleSubmit = form.onSubmit(async (values) => {
     setSubmitting(true);
     setErrorMsg(null);
     try {
-      const authContext = await apiRequest<AuthUserContext>('/api/auth/login', {
+      const authContext = await apiRequest('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({
+        requestSchema: loginSchema,
+        responseSchema: loginResponseSchema,
+        body: {
           email: values.email.trim(),
           password: values.password,
-        }),
+        },
       });
       setAuth(authContext);
       const destination =

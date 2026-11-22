@@ -1,4 +1,8 @@
 import { requirePermissions } from '@/lib/auth-guard';
+import {
+  roleMutationResponseSchema,
+  successResponseSchema,
+} from '@/lib/contracts';
 import { handleApiError, jsonOk, parseJsonBody } from '@/lib/http';
 import { PERMISSIONS } from '@/lib/permissions';
 import { getLmsRepository } from '@/lib/repositories';
@@ -20,7 +24,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const repo = getLmsRepository();
     const role = await repo.updateRole(roleId, input);
 
-    return jsonOk({ role });
+    return jsonOk({ role }, roleMutationResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }
@@ -35,7 +39,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const repo = getLmsRepository();
     await repo.deleteRole(roleId);
 
-    return jsonOk({ success: true });
+    return jsonOk({ success: true }, successResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }

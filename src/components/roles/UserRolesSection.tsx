@@ -16,8 +16,10 @@ import { IconDeviceFloppy, IconSearch } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import { userMutationResponseSchema } from '@/lib/contracts';
 import { formatMessage } from '@/lib/i18n';
 import type { RoleSummary, UserWithRoles } from '@/lib/types';
+import { assignUserRolesSchema } from '@/lib/validation';
 
 interface UserRolesSectionProps {
   users: UserWithRoles[];
@@ -70,13 +72,12 @@ export function UserRolesSection({
     setSavingUserId(user.id);
     try {
       const roleIds = getDraftRoleIds(user);
-      await apiRequest<{ user: UserWithRoles }>(
-        `/api/admin/users/${user.id}/roles`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ roleIds }),
-        },
-      );
+      await apiRequest(`/api/admin/users/${user.id}/roles`, {
+        method: 'PUT',
+        requestSchema: assignUserRolesSchema,
+        responseSchema: userMutationResponseSchema,
+        body: { roleIds },
+      });
       setDraftOverrides((prev) => {
         const next = { ...prev };
         delete next[user.id];

@@ -37,10 +37,18 @@ import { PermissionGuard } from '@/components/layout/PermissionGuard';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useI18n } from '@/components/providers/I18nProvider';
 import { apiRequest, ClientApiError } from '@/lib/api-client';
+import {
+  consultationMutationResponseSchema,
+  consultationStatusFilterSchema,
+  ownConsultationsResponseSchema,
+} from '@/lib/contracts';
 import { PERMISSIONS } from '@/lib/permissions';
-import type { Consultation, ConsultationStats } from '@/lib/types';
-
-type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled';
+import type {
+  Consultation,
+  ConsultationStats,
+  ConsultationStatusFilter,
+} from '@/lib/types';
+import { toggleCompleteConsultationSchema } from '@/lib/validation';
 
 const EMPTY_STATS: ConsultationStats = {
   total: 0,
@@ -61,7 +69,8 @@ function StudentDashboardContent() {
   const [stats, setStats] = useState<ConsultationStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] =
+    useState<ConsultationStatusFilter>('all');
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch] = useDebouncedValue(searchText, 200);
   const [reloadTick, setReloadTick] = useState(0);
@@ -91,10 +100,10 @@ function StudentDashboardContent() {
           params.set('search', debouncedSearch.trim());
         }
 
-        const res = await apiRequest<{
-          consultations: Consultation[];
-          stats: ConsultationStats;
-        }>(`/api/consultations?${params.toString()}`, { cache: 'no-store' });
+        const res = await apiRequest(`/api/consultations?${params.toString()}`, {
+          cache: 'no-store',
+          responseSchema: ownConsultationsResponseSchema,
+        });
 
         if (!active) return;
         setConsultations(res.consultations);
@@ -121,16 +130,15 @@ function StudentDashboardContent() {
     const nextCompleted = item.status !== 'completed';
     setTogglingId(item.id);
     try {
-      await apiRequest<{ consultation: Consultation }>(
-        `/api/consultations/${item.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            action: 'toggle_complete',
-            completed: nextCompleted,
-          }),
+      await apiRequest(`/api/consultations/${item.id}`, {
+        method: 'PATCH',
+        requestSchema: toggleCompleteConsultationSchema,
+        responseSchema: consultationMutationResponseSchema,
+        body: {
+          action: 'toggle_complete',
+          completed: nextCompleted,
         },
-      );
+      });
       notifications.show({
         color: nextCompleted ? 'teal' : 'blue',
         title: nextCompleted
@@ -250,7 +258,12 @@ function StudentDashboardContent() {
             <Group justify="space-between" align="center" wrap="wrap" gap="sm">
               <SegmentedControl
                 value={statusFilter}
-                onChange={(val) => setStatusFilter(val as StatusFilter)}
+                onChange={(val) => {
+                  const parsed = consultationStatusFilterSchema.safeParse(val);
+                  if (parsed.success) {
+                    setStatusFilter(parsed.data);
+                  }
+                }}
                 data={[
                   { label: messages.consultationStatus.all, value: 'all' },
                   {

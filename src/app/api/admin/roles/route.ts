@@ -1,5 +1,9 @@
 import { requirePermissions } from '@/lib/auth-guard';
 import {
+  roleMutationResponseSchema,
+  rolesListResponseSchema,
+} from '@/lib/contracts';
+import {
   handleApiError,
   jsonCreated,
   jsonOk,
@@ -23,7 +27,7 @@ export async function GET() {
     const repo = getLmsRepository();
     const roles = await repo.listRoles();
 
-    return jsonOk({ roles });
+    return jsonOk({ roles }, rolesListResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }
@@ -38,7 +42,7 @@ export async function POST(request: Request) {
     const repo = getLmsRepository();
     const role = await repo.createRole(input);
 
-    return jsonCreated({ role });
+    return jsonCreated({ role }, roleMutationResponseSchema);
   } catch (error) {
     return handleApiError(error);
   }
