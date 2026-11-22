@@ -105,6 +105,16 @@ function sanitizePostgrestSearch(raw: string): string {
   return raw.replace(/[,()*%]/g, ' ').trim();
 }
 
+function throwSanitizedDbError(
+  status: number,
+  code: string,
+  publicMessage: string,
+  cause: unknown,
+): never {
+  console.error(`[SupabaseRepository:${code}]`, cause);
+  throw new AppError(status, code, publicMessage);
+}
+
 export class SupabaseRepository implements LmsRepository {
   private async loadAuthContextForUser(
     userId: string,
@@ -120,7 +130,7 @@ export class SupabaseRepository implements LmsRepository {
       .maybeSingle();
 
     if (profileErr) {
-      throw new AppError(500, 'PROFILE_FETCH_FAILED', profileErr.message);
+      throwSanitizedDbError(500, 'PROFILE_FETCH_FAILED', 'Unable to load user profile.', profileErr);
     }
 
     const { data: userRoleRows, error: urErr } = await supabase
@@ -129,7 +139,7 @@ export class SupabaseRepository implements LmsRepository {
       .eq('user_id', userId);
 
     if (urErr) {
-      throw new AppError(500, 'USER_ROLES_FETCH_FAILED', urErr.message);
+      throwSanitizedDbError(500, 'USER_ROLES_FETCH_FAILED', 'Unable to load user roles.', urErr);
     }
 
     const roleIds = (userRoleRows ?? []).map((row) => row.role_id as string);
@@ -143,7 +153,7 @@ export class SupabaseRepository implements LmsRepository {
         .order('name');
 
       if (rolesErr) {
-        throw new AppError(500, 'ROLES_FETCH_FAILED', rolesErr.message);
+        throwSanitizedDbError(500, 'ROLES_FETCH_FAILED', 'Unable to load role details.', rolesErr);
       }
 
       const { data: rpRows, error: rpErr } = await supabase
@@ -152,7 +162,12 @@ export class SupabaseRepository implements LmsRepository {
         .in('role_id', roleIds);
 
       if (rpErr) {
-        throw new AppError(500, 'ROLE_PERMS_FETCH_FAILED', rpErr.message);
+        throwSanitizedDbError(
+          500,
+          'ROLE_PERMS_FETCH_FAILED',
+          'Unable to load role permissions.',
+          rpErr,
+        );
       }
 
       const permsByRole = new Map<string, PermissionKey[]>();
@@ -225,8 +240,12 @@ export class SupabaseRepository implements LmsRepository {
         supabase.from('user_roles').select('user_id, role_id'),
       ]);
 
-    if (rpErr) throw new AppError(500, 'LOCKOUT_CHECK_FAILED', rpErr.message);
-    if (urErr) throw new AppError(500, 'LOCKOUT_CHECK_FAILED', urErr.message);
+    if (rpErr) {
+      throwSanitizedDbError(500, 'LOCKOUT_CHECK_FAILED', 'Unable to verify role permissions.', rpErr);
+    }
+    if (urErr) {
+      throwSanitizedDbError(500, 'LOCKOUT_CHECK_FAILED', 'Unable to verify role assignments.', urErr);
+    }
 
     const permsMap = new Map<string, PermissionKey[]>();
     for (const row of rpRows ?? []) {
@@ -282,7 +301,15 @@ export class SupabaseRepository implements LmsRepository {
       if (lower.includes('already') || lower.includes('registered')) {
         throw new AppError(409, 'EMAIL_EXISTS', 'An account with this email already exists.');
       }
-      throw new AppError(400, 'SIGNUP_FAILED', error.message);
+      if (lower.includes('signups not allowed') || lower.includes('disabled')) {
+        throw new AppError(403, 'SIGNUP_DISABLED', 'New account sign-ups are currently disabled.');
+      }
+      throwSanitizedDbError(
+        400,
+        'SIGNUP_FAILED',
+        'Unable to create account with the provided details.',
+        error,
+      );
     }
 
     if (!data.user) {
@@ -336,7 +363,7 @@ export class SupabaseRepository implements LmsRepository {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.signOut();
     if (error) {
-      throw new AppError(500, 'LOGOUT_FAILED', error.message);
+      throwSanitizedDbError(500, 'LOGOUT_FAILED', 'Unable to sign out.', error);
     }
   }
 
@@ -344,7 +371,12 @@ export class SupabaseRepository implements LmsRepository {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      throw new AppError(400, 'AUTH_CALLBACK_FAILED', error.message);
+      throwSanitizedDbError(
+        400,
+        'AUTH_CALLBACK_FAILED',
+        'Unable to verify authentication callback code.',
+        error,
+      );
     }
   }
 
@@ -377,7 +409,12 @@ export class SupabaseRepository implements LmsRepository {
       .order('starts_at', { ascending: false });
 
     if (error) {
-      throw new AppError(500, 'CONSULTATIONS_FETCH_FAILED', error.message);
+      throwSanitizedDbError(
+        500,
+        'CONSULTATIONS_FETCH_FAILED',
+        'Unable to load consultations.',
+        error,
+      );
     }
 
     const typed = (allRows ?? []) as DbConsultationRow[];
@@ -424,7 +461,12 @@ export class SupabaseRepository implements LmsRepository {
       .single();
 
     if (error || !data) {
-      throw new AppError(400, 'CONSULTATION_CREATE_FAILED', error?.message || 'Unable to create consultation.');
+      throwSanitizedDbError(
+        400,
+        'CONSULTATION_CREATE_FAILED',
+        'Unable to create consultation.',
+        error,
+      );
     }
 
     return mapConsultation(data as DbConsultationRow);
@@ -447,7 +489,12 @@ export class SupabaseRepository implements LmsRepository {
       .maybeSingle();
 
     if (fetchErr) {
-      throw new AppError(500, 'CONSULTATION_FETCH_FAILED', fetchErr.message);
+      throwSanitizedDbError(
+        500,
+        'CONSULTATION_FETCH_FAILED',
+        'Unable to load consultation.',
+        fetchErr,
+      );
     }
 
     if (!existing) {
@@ -484,13 +531,28 @@ export class SupabaseRepository implements LmsRepository {
       .update(updatePatch)
       .eq('id', consultationId)
       .eq('student_id', studentId)
+      .eq('status', mappedExisting.status)
+      .eq('updated_at', mappedExisting.updatedAt)
       .select(
         'id, student_id, first_name, last_name, reason, starts_at, ends_at, status, completed_at, cancelled_at, created_at, updated_at',
       )
-      .single();
+      .maybeSingle();
 
-    if (updateErr || !updated) {
-      throw new AppError(400, 'CONSULTATION_UPDATE_FAILED', updateErr?.message || 'Unable to update consultation.');
+    if (updateErr) {
+      throwSanitizedDbError(
+        400,
+        'CONSULTATION_UPDATE_FAILED',
+        'Unable to update consultation.',
+        updateErr,
+      );
+    }
+
+    if (!updated) {
+      throw new AppError(
+        409,
+        'CONCURRENT_MODIFICATION',
+        'This consultation was updated by another request. Please refresh and try again.',
+      );
     }
 
     return mapConsultation(updated as DbConsultationRow);
@@ -506,7 +568,12 @@ export class SupabaseRepository implements LmsRepository {
       .select('status');
 
     if (statsErr) {
-      throw new AppError(500, 'CONSULTATIONS_STATS_FAILED', statsErr.message);
+      throwSanitizedDbError(
+        500,
+        'CONSULTATIONS_STATS_FAILED',
+        'Unable to load consultation statistics.',
+        statsErr,
+      );
     }
 
     const stats = computeStats(
@@ -557,7 +624,12 @@ export class SupabaseRepository implements LmsRepository {
     const { data: rows, count, error: listErr } = await dbQuery.range(from, to);
 
     if (listErr) {
-      throw new AppError(500, 'ADMIN_CONSULTATIONS_FETCH_FAILED', listErr.message);
+      throwSanitizedDbError(
+        500,
+        'ADMIN_CONSULTATIONS_FETCH_FAILED',
+        'Unable to load consultations.',
+        listErr,
+      );
     }
 
     const totalItems = count ?? 0;
@@ -610,9 +682,25 @@ export class SupabaseRepository implements LmsRepository {
       supabase.from('user_roles').select('role_id'),
     ]);
 
-    if (rolesErr) throw new AppError(500, 'ROLES_FETCH_FAILED', rolesErr.message);
-    if (rpErr) throw new AppError(500, 'ROLE_PERMS_FETCH_FAILED', rpErr.message);
-    if (urErr) throw new AppError(500, 'USER_ROLES_FETCH_FAILED', urErr.message);
+    if (rolesErr) {
+      throwSanitizedDbError(500, 'ROLES_FETCH_FAILED', 'Unable to load roles.', rolesErr);
+    }
+    if (rpErr) {
+      throwSanitizedDbError(
+        500,
+        'ROLE_PERMS_FETCH_FAILED',
+        'Unable to load role permissions.',
+        rpErr,
+      );
+    }
+    if (urErr) {
+      throwSanitizedDbError(
+        500,
+        'USER_ROLES_FETCH_FAILED',
+        'Unable to load role assignments.',
+        urErr,
+      );
+    }
 
     const permsByRole = new Map<string, PermissionKey[]>();
     for (const row of rpRows ?? []) {
@@ -665,7 +753,12 @@ export class SupabaseRepository implements LmsRepository {
       .in('key', input.permissionKeys);
 
     if (permsErr) {
-      throw new AppError(500, 'PERMISSIONS_LOOKUP_FAILED', permsErr.message);
+      throwSanitizedDbError(
+        500,
+        'PERMISSIONS_LOOKUP_FAILED',
+        'Unable to look up permissions.',
+        permsErr,
+      );
     }
 
     if (!perms || perms.length !== input.permissionKeys.length) {
@@ -678,7 +771,12 @@ export class SupabaseRepository implements LmsRepository {
         .update({ is_default: false })
         .eq('is_default', true);
       if (clearDefaultErr) {
-        throw new AppError(500, 'DEFAULT_ROLE_UPDATE_FAILED', clearDefaultErr.message);
+        throwSanitizedDbError(
+          500,
+          'DEFAULT_ROLE_UPDATE_FAILED',
+          'Unable to update default role flag.',
+          clearDefaultErr,
+        );
       }
     }
 
@@ -695,7 +793,10 @@ export class SupabaseRepository implements LmsRepository {
       .single();
 
     if (createErr || !created) {
-      throw new AppError(400, 'ROLE_CREATE_FAILED', createErr?.message || 'Unable to create role.');
+      if ((createErr as { code?: string } | null)?.code === '23505') {
+        throw new AppError(409, 'ROLE_SLUG_EXISTS', `A role with slug "${input.slug}" already exists.`);
+      }
+      throwSanitizedDbError(500, 'ROLE_CREATE_FAILED', 'Unable to create role.', createErr);
     }
 
     const roleId = (created as DbRoleRow).id;
@@ -707,7 +808,12 @@ export class SupabaseRepository implements LmsRepository {
     );
 
     if (rpInsertErr) {
-      throw new AppError(500, 'ROLE_PERMS_CREATE_FAILED', rpInsertErr.message);
+      throwSanitizedDbError(
+        500,
+        'ROLE_PERMS_CREATE_FAILED',
+        'Unable to save role permissions.',
+        rpInsertErr,
+      );
     }
 
     const row = created as DbRoleRow;
@@ -735,7 +841,7 @@ export class SupabaseRepository implements LmsRepository {
       .maybeSingle();
 
     if (fetchErr) {
-      throw new AppError(500, 'ROLE_FETCH_FAILED', fetchErr.message);
+      throwSanitizedDbError(500, 'ROLE_FETCH_FAILED', 'Unable to load role.', fetchErr);
     }
     if (!existing) {
       throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
@@ -748,7 +854,12 @@ export class SupabaseRepository implements LmsRepository {
         .in('key', input.permissionKeys);
 
       if (permsErr) {
-        throw new AppError(500, 'PERMISSIONS_LOOKUP_FAILED', permsErr.message);
+        throwSanitizedDbError(
+          500,
+          'PERMISSIONS_LOOKUP_FAILED',
+          'Unable to look up permissions.',
+          permsErr,
+        );
       }
       if (!perms || perms.length !== input.permissionKeys.length) {
         throw new AppError(400, 'UNKNOWN_PERMISSION', 'One or more permission attributes are invalid.');
@@ -768,7 +879,12 @@ export class SupabaseRepository implements LmsRepository {
         .delete()
         .eq('role_id', roleId);
       if (delRpErr) {
-        throw new AppError(500, 'ROLE_PERMS_UPDATE_FAILED', delRpErr.message);
+        throwSanitizedDbError(
+          500,
+          'ROLE_PERMS_UPDATE_FAILED',
+          'Unable to update role permissions.',
+          delRpErr,
+        );
       }
 
       const { error: insRpErr } = await supabase.from('role_permissions').insert(
@@ -778,7 +894,12 @@ export class SupabaseRepository implements LmsRepository {
         })),
       );
       if (insRpErr) {
-        throw new AppError(500, 'ROLE_PERMS_UPDATE_FAILED', insRpErr.message);
+        throwSanitizedDbError(
+          500,
+          'ROLE_PERMS_UPDATE_FAILED',
+          'Unable to update role permissions.',
+          insRpErr,
+        );
       }
     }
 
@@ -789,7 +910,12 @@ export class SupabaseRepository implements LmsRepository {
         .eq('is_default', true)
         .neq('id', roleId);
       if (clearErr) {
-        throw new AppError(500, 'DEFAULT_ROLE_UPDATE_FAILED', clearErr.message);
+        throwSanitizedDbError(
+          500,
+          'DEFAULT_ROLE_UPDATE_FAILED',
+          'Unable to update default role flag.',
+          clearErr,
+        );
       }
     }
 
@@ -804,7 +930,7 @@ export class SupabaseRepository implements LmsRepository {
         .update(patch)
         .eq('id', roleId);
       if (updErr) {
-        throw new AppError(400, 'ROLE_UPDATE_FAILED', updErr.message);
+        throwSanitizedDbError(400, 'ROLE_UPDATE_FAILED', 'Unable to update role.', updErr);
       }
     }
 
@@ -826,7 +952,7 @@ export class SupabaseRepository implements LmsRepository {
       .maybeSingle();
 
     if (fetchErr) {
-      throw new AppError(500, 'ROLE_FETCH_FAILED', fetchErr.message);
+      throwSanitizedDbError(500, 'ROLE_FETCH_FAILED', 'Unable to load role.', fetchErr);
     }
     if (!existing) {
       throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
@@ -853,7 +979,7 @@ export class SupabaseRepository implements LmsRepository {
 
     const { error: delErr } = await supabase.from('roles').delete().eq('id', roleId);
     if (delErr) {
-      throw new AppError(400, 'ROLE_DELETE_FAILED', delErr.message);
+      throwSanitizedDbError(400, 'ROLE_DELETE_FAILED', 'Unable to delete role.', delErr);
     }
   }
 
@@ -870,8 +996,17 @@ export class SupabaseRepository implements LmsRepository {
         this.listRoles(),
       ]);
 
-    if (profErr) throw new AppError(500, 'USERS_FETCH_FAILED', profErr.message);
-    if (urErr) throw new AppError(500, 'USER_ROLES_FETCH_FAILED', urErr.message);
+    if (profErr) {
+      throwSanitizedDbError(500, 'USERS_FETCH_FAILED', 'Unable to load users.', profErr);
+    }
+    if (urErr) {
+      throwSanitizedDbError(
+        500,
+        'USER_ROLES_FETCH_FAILED',
+        'Unable to load user role assignments.',
+        urErr,
+      );
+    }
 
     const roleById = new Map(roles.map((r) => [r.id, r]));
     const rolesByUser = new Map<string, RoleSummary[]>();
@@ -920,7 +1055,9 @@ export class SupabaseRepository implements LmsRepository {
       .eq('id', targetUserId)
       .maybeSingle();
 
-    if (profErr) throw new AppError(500, 'USER_FETCH_FAILED', profErr.message);
+    if (profErr) {
+      throwSanitizedDbError(500, 'USER_FETCH_FAILED', 'Unable to load user.', profErr);
+    }
     if (!targetProfile) throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
 
     const uniqueRoleIds = Array.from(new Set(input.roleIds));
@@ -930,7 +1067,14 @@ export class SupabaseRepository implements LmsRepository {
         .select('id')
         .in('id', uniqueRoleIds);
 
-      if (validErr) throw new AppError(500, 'ROLES_LOOKUP_FAILED', validErr.message);
+      if (validErr) {
+        throwSanitizedDbError(
+          500,
+          'ROLES_LOOKUP_FAILED',
+          'Unable to verify selected roles.',
+          validErr,
+        );
+      }
       if (!validRoles || validRoles.length !== uniqueRoleIds.length) {
         throw new AppError(400, 'UNKNOWN_ROLE', 'One or more selected roles do not exist.');
       }
@@ -950,7 +1094,14 @@ export class SupabaseRepository implements LmsRepository {
       .from('user_roles')
       .delete()
       .eq('user_id', targetUserId);
-    if (delErr) throw new AppError(500, 'USER_ROLES_UPDATE_FAILED', delErr.message);
+    if (delErr) {
+      throwSanitizedDbError(
+        500,
+        'USER_ROLES_UPDATE_FAILED',
+        'Unable to update user role assignments.',
+        delErr,
+      );
+    }
 
     if (uniqueRoleIds.length > 0) {
       const { error: insErr } = await supabase.from('user_roles').insert(
@@ -960,7 +1111,14 @@ export class SupabaseRepository implements LmsRepository {
           assigned_by: actorId,
         })),
       );
-      if (insErr) throw new AppError(500, 'USER_ROLES_UPDATE_FAILED', insErr.message);
+      if (insErr) {
+        throwSanitizedDbError(
+          500,
+          'USER_ROLES_UPDATE_FAILED',
+          'Unable to update user role assignments.',
+          insErr,
+        );
+      }
     }
 
     const users = await this.listUsers();
@@ -985,10 +1143,11 @@ export class SupabaseRepository implements LmsRepository {
       .single();
 
     if (error || !data) {
-      throw new AppError(
+      throwSanitizedDbError(
         400,
         'SETTINGS_UPDATE_FAILED',
-        error?.message || 'Unable to update user settings.',
+        'Unable to update user settings.',
+        error,
       );
     }
 

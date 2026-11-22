@@ -80,7 +80,8 @@ The app does not hardcode role names such as `STUDENT` or `ADMIN`. All access ch
 │       ├── 20261122000001_initial_schema.sql
 │       ├── 20261122000002_rls_policies.sql
 │       ├── 20261122000003_user_locale_preference.sql
-│       └── 20261122000004_drop_unused_get_user_permissions.sql
+│       ├── 20261122000004_drop_unused_get_user_permissions.sql
+│       └── 20261122000005_harden_rls_and_guards.sql
 ├── src/
 │   ├── proxy.ts                         # Next.js 16 session and route proxy
 │   ├── theme.ts                         # Mantine theme tokens
@@ -118,6 +119,7 @@ The app does not hardcode role names such as `STUDENT` or `ADMIN`. All access ch
 - `supabase/migrations/20261122000002_rls_policies.sql`: Enables RLS on all tables and adds attribute-based policies.
 - `supabase/migrations/20261122000003_user_locale_preference.sql`: Adds `preferred_locale` (`en` default) to `profiles` and updates `handle_new_user()`.
 - `supabase/migrations/20261122000004_drop_unused_get_user_permissions.sql`: Drops the unused `get_user_permissions()` helper function.
+- `supabase/migrations/20261122000005_harden_rls_and_guards.sql`: Restricts `profiles` updates to profile/locale columns, disallows updates on cancelled consultations in RLS, adds consultation duration bounds, and enforces transition/immutability triggers.
 - `supabase/schema.sql`: Combines all migrations into one SQL file.
 - `supabase/seed.sql`: Seeds 8 access attributes and 3 starter roles (`learner`, `consultation-auditor`, `super-admin`).
 - `scripts/seed.ts`: Creates 3 demo accounts and sample consultations.
@@ -230,7 +232,7 @@ Demo accounts from `bun run db:seed` use `SEED_DEFAULT_PASSWORD` (`ChangeMe123!`
 ### 1. Set Up Production Supabase
 
 1. Create a project in [Supabase](https://supabase.com/dashboard).
-2. Run `supabase/migrations/20261122000001_initial_schema.sql`, `20261122000002_rls_policies.sql`, `20261122000003_user_locale_preference.sql`, and `20261122000004_drop_unused_get_user_permissions.sql` (or `supabase/schema.sql`).
+2. Run `supabase/migrations/20261122000001_initial_schema.sql`, `20261122000002_rls_policies.sql`, `20261122000003_user_locale_preference.sql`, `20261122000004_drop_unused_get_user_permissions.sql`, and `20261122000005_harden_rls_and_guards.sql` (or `supabase/schema.sql`).
 3. Run `supabase/seed.sql`.
 4. Open **Authentication → URL Configuration**.
 5. Set **Site URL** to `https://your-app.vercel.app`.

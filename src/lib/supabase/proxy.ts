@@ -16,6 +16,17 @@ export function isAuthPagePath(pathname: string): boolean {
   );
 }
 
+export function createRedirectWithCookies(
+  redirectUrl: URL,
+  sourceResponse: NextResponse,
+): NextResponse {
+  const redirectResponse = NextResponse.redirect(redirectUrl);
+  for (const cookie of sourceResponse.cookies.getAll()) {
+    redirectResponse.cookies.set(cookie);
+  }
+  return redirectResponse;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -56,14 +67,14 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('next', `${pathname}${search}`);
-    return NextResponse.redirect(redirectUrl);
+    return createRedirectWithCookies(redirectUrl, supabaseResponse);
   }
 
   if (user && isAuthPagePath(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/';
     redirectUrl.search = '';
-    return NextResponse.redirect(redirectUrl);
+    return createRedirectWithCookies(redirectUrl, supabaseResponse);
   }
 
   return supabaseResponse;
